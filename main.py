@@ -42,30 +42,62 @@ def df_to_X_y(df, window_size):
     X = []
     y = []
     for i in range(len(df_as_np) - window_size):
-        row = [[a] for a in df_as_np[i:i+window_size]]
+        row = [a for a in df_as_np[i:i+window_size]]
         X.append(row)
-        label = df_as_np[i+window_size]
+        label = df_as_np[i+window_size][0]
         y.append(label)
 
     return np.array(X), np.array(y)
 
-def plot_predictions1(model, X, y, start=0, end=100):
+def preprocess(X):
+
+  if(len(X.shape) > 1):
+    x_mean = np.mean(X[:,:,0])
+    x_std = np.std(X[:,:,0])
+    X[:,:,0] = (X[:,:,0] - x_mean) / x_std
+  else:
+    y_mean = np.mean(X)
+    y_std = np.std(X)
+    X = (X - y_mean) / y_std
+  return X
+
+def plot_predictions1(model, X, y, start=0, end=100,plot=False):
 
     predictions = model.predict(X).flatten()
     df = pd.DataFrame(data={'Predictions': predictions, 'Actuals':y})
-    plt.plot(df['Predictions'][start:end],label='prediction')
-    plt.plot(df['Actuals'][start:end],label='actual')
-    plt.legend()
-    plt.show()
+    if plot:
+        plt.plot(df['Predictions'][start:end],label='prediction')
+        plt.plot(df['Actuals'][start:end],label='actual')
+        plt.legend()
+        plt.show()
     return df, mse(predictions, y)
+
+def plot_performance(train_results, start=0,end=100,plot=False):
+    if plot:
+        performance = (train_results[:end]['Predictions'] - train_results[:100]['Actuals'])
+        plt.plot(performance[:end],label='error margin')
+        plt.plot(train_results[:100]['Predictions'],label='predictions')
+        plt.plot(train_results[:end]['Actuals'], label='actuals')
+        plt.legend()
+        plt.show()
 
 if __name__ == '__main__':
 
     window_size = 5
+    plot_perf = True
     df = get_data()
-    temp_df = df['T (degC)']
-    X1, y1 = df_to_X_y(temp_df, window_size)
-    # print(X1.shape, y1.shape)
+    temp_df = df[['T (degC)','rh (%)','p (mbar)','VPact (mbar)','VPact (mbar)','max. wv (m/s)']]
+    df_temp_ = temp_df.copy()
+    df_temp_ = pd.DataFrame(df_temp_).rename(columns={'T (degC)':'temperature','rh (%)':'rh_perc',\
+                                                      'p (mbar)':'p_mbar','VPact (mbar)':'vpact_mbar','max. wv (m/s)':'max_wv_m_per_sec'})
+
+    #adding more features to the dataframe
+
+    X1, y1 = df_to_X_y(df_temp_, window_size)
+
+    #Normalize the target
+    X1 = preprocess(X1)
+    y1 = preprocess(y1)
 
     x_train1, y_train1 = X1[:60000], y1[:60000]
     x_val1, y_val1 = X1[60000:65000], y1[60000:65000]
@@ -85,5 +117,7 @@ if __name__ == '__main__':
     model1.fit(x_train1, y_train1, validation_data=(x_val1, y_val1), epochs=50, callbacks=[cp1])
     model1 = load_model('/c//Users//SIMON//Documents//trading//deeplearning//tensorflow_test1//models//model1.keras')
 
-    train_results, perf = plot_predictions1(model1,x_train1, y_train1)
+    test_results, perf = plot_predictions1(model1,x_test1, y_test1, plot=False)
+    print(f"performance: {perf}")
+    plot_performance(test_results)
     print("the end")
